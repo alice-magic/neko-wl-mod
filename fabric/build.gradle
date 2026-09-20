@@ -23,15 +23,15 @@ configurations {
 }
 
 dependencies {
-    modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
-    // Architectury API pulls in a Fabric API build for 1.21, which refuses to load on
-    // 1.21.1. Take ours and drop its transitive copy.
-    modApi("dev.architectury:architectury-fabric:$rootProject.architectury_api_version") {
+    implementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
+    // Pin Fabric API to the build for this Minecraft version rather than whatever
+    // Architectury happens to depend on.
+    api("dev.architectury:architectury-fabric:$rootProject.architectury_api_version") {
         exclude group: "net.fabricmc.fabric-api"
     }
-    modImplementation "net.fabricmc.fabric-api:fabric-api:$rootProject.fabric_api_version"
+    implementation "net.fabricmc.fabric-api:fabric-api:$rootProject.fabric_api_version"
 
-    common(project(path: ':common', configuration: 'namedElements')) { transitive false }
+    common(project(path: ':common')) { transitive false }
     shadowBundle project(path: ':common', configuration: 'transformProductionFabric')
 }
 
@@ -44,15 +44,19 @@ processResources {
 }
 
 shadowJar {
+    dependsOn(jar)
+    mainSpec.sourcePaths.clear()       // Drop the default source set...
+    from(zipTree(jar.archiveFile))     // ...and take the jar task's output instead,
+                                       // which preserves Loom's modifications.
     configurations = [project.configurations.shadowBundle]
-    archiveClassifier = 'dev-shadow'
-}
-
-remapJar {
-    inputFile.set shadowJar.archiveFile
-    archiveClassifier = null
+    archiveClassifier = null           // shadowJar becomes the main artifact
 }
 
 jar {
-    archiveClassifier = 'dev'
+    archiveClassifier = "raw"
+}
+
+// Nothing consumes shadowJar by default, so build would stop at the raw jar.
+tasks.named('assemble') {
+    dependsOn 'shadowJar'
 }

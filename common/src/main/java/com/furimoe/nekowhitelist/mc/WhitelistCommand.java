@@ -12,13 +12,11 @@ import java.util.function.Supplier;
 /**
  * {@code /nekowhitelist reload} and {@code status}.
  *
- * <p>Permission level 4, the same as {@code /stop}: the command reaches an API key and can
- * decide who may join, which is not something an ordinary operator should reach for. The
- * console is level 4 too, so it always works there.
+ * <p>Gated at {@code LEVEL_OWNERS}, the same bar as {@code /stop}: the command reaches an
+ * API key and can decide who may join, which is not something an ordinary operator should
+ * reach for. The console clears it, so it always works there.
  */
 public final class WhitelistCommand {
-
-    private static final int PERMISSION_LEVEL = 4;
 
     private WhitelistCommand() {
     }
@@ -29,8 +27,10 @@ public final class WhitelistCommand {
      */
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher,
                                 Supplier<WhitelistSyncService> service) {
+        // 26.x replaced integer permission levels with named sets; LEVEL_OWNERS is what
+        // vanilla gates /stop with, which is the bar this command should clear too.
         LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal("nekowhitelist")
-                .requires(source -> source.hasPermission(PERMISSION_LEVEL));
+                .requires(Commands.hasPermission(Commands.LEVEL_OWNERS));
 
         root.then(Commands.literal("reload").executes(context -> {
             WhitelistSyncService running = service.get();

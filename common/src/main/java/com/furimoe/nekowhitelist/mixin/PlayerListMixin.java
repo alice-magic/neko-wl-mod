@@ -2,10 +2,10 @@ package com.furimoe.nekowhitelist.mixin;
 
 import com.furimoe.nekowhitelist.NekoWhitelistMod;
 import com.furimoe.nekowhitelist.mc.JoinGate;
-import com.mojang.authlib.GameProfile;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
+import net.minecraft.server.players.NameAndId;
 import net.minecraft.server.players.PlayerList;
 
 import org.spongepowered.asm.mixin.Mixin;
@@ -23,6 +23,10 @@ import java.net.SocketAddress;
  * itself means they get in immediately, and it is the same decision point vanilla uses,
  * so nothing else in the login flow has to change.
  *
+ * <p>26.x note: the target takes {@code NameAndId} where 1.x took {@code GameProfile}.
+ * A handler whose parameters do not match is an {@code InvalidInjectionException} at
+ * startup, so a mistake here fails loudly rather than silently doing nothing.
+ *
  * <p>Only rejections are examined, and only those for the whitelist. A player vanilla
  * already accepts is let through untouched, which keeps the common case free of any
  * network call, and a ban, an IP ban or a full server is never overridden: the same
@@ -36,7 +40,7 @@ public abstract class PlayerListMixin {
 
     @Inject(method = "canPlayerLogin", at = @At("RETURN"), cancellable = true)
     private void nekoWhitelist$recheckRejectedLogin(
-            SocketAddress address, GameProfile profile, CallbackInfoReturnable<Component> info) {
+            SocketAddress address, NameAndId profile, CallbackInfoReturnable<Component> info) {
 
         // A null return means vanilla is happy; nothing to add.
         if (!isWhitelistRejection(info.getReturnValue())) {
@@ -50,7 +54,7 @@ public abstract class PlayerListMixin {
 
         // Runs on a login thread with the player waiting, so the gate bounds its own
         // API call and falls back to the synced list rather than hanging the connection.
-        if (gate.allowsFresh(profile.getId(), profile.getName())) {
+        if (gate.allowsFresh(profile.id(), profile.name())) {
             info.setReturnValue(null);
         }
     }

@@ -2,15 +2,14 @@ package com.furimoe.nekowhitelist.mc;
 
 import com.furimoe.nekowhitelist.api.NekoWhitelistClient;
 import com.furimoe.nekowhitelist.api.WhitelistSnapshot;
-import com.mojang.authlib.GameProfile;
-
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.dedicated.DedicatedServer;
+import net.minecraft.server.players.NameAndId;
 import net.minecraft.server.players.UserWhiteList;
 import net.minecraft.server.players.UserWhiteListEntry;
 
 import org.slf4j.Logger;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -24,9 +23,10 @@ import java.util.UUID;
  * Pushes a snapshot into the server's own whitelist, so vanilla does the enforcing in
  * {@code PlayerList#canPlayerLogin} and no login-path HTTP call is ever needed.
  *
- * <p>This is the only version-divergent class in the mod. On 1.20.1 and 1.21.1 the
- * whitelist is keyed by {@link GameProfile} and the toggle lives on {@code PlayerList};
- * on 26.x both moved ({@code NameAndId} and {@code DedicatedServer} respectively).
+ * <p>One of two version-divergent classes, alongside {@code PlayerListMixin}. Here the
+ * whitelist is keyed by {@link NameAndId} and the enforcement toggle lives on
+ * {@link DedicatedServer}; on 1.20.1 and 1.21.1 they were {@code GameProfile} and
+ * {@code PlayerList}.
  *
  * <p>Must run on the server thread: {@code UserWhiteList} is HashMap-backed and is not
  * safe to touch from the sync executor.
@@ -43,7 +43,7 @@ public final class WhitelistApplier {
      * back as profiles. Tracking our own writes is enough for a diff and avoids reflection
      * or an access widener, which would be one more thing to maintain per version.
      */
-    private final Map<UUID, GameProfile> applied = new HashMap<>();
+    private final Map<UUID, NameAndId> applied = new HashMap<>();
 
     /** whitelist.json is taken over once, on the first sync, not every five minutes. */
     private boolean reconciledExisting;
@@ -92,7 +92,7 @@ public final class WhitelistApplier {
         int added = 0;
         for (UUID uuid : wanted) {
             if (!applied.containsKey(uuid)) {
-                GameProfile profile = profileFor(uuid);
+                NameAndId profile = entryFor(uuid);
                 whitelist.add(new UserWhiteListEntry(profile));
                 applied.put(uuid, profile);
                 added++;
@@ -146,7 +146,7 @@ public final class WhitelistApplier {
         for (String name : whitelist.getUserList()) {
             UUID uuid = ours.contains(name) ? NekoWhitelistClient.parseUndashed(name) : null;
             if (uuid != null) {
-                applied.put(uuid, new GameProfile(uuid, name));
+                applied.put(uuid, new NameAndId(uuid, name));
             } else {
                 foreign.add(name);
             }
@@ -170,12 +170,18 @@ public final class WhitelistApplier {
     /**
      * Turns the server's whitelist on or off.
      *
-     * <p>26.x note: this method moves to {@code DedicatedServer#setUsingWhitelist} and
-     * needs an {@code instanceof} guard there.
+     * <p>26.x keeps this on {@code DedicatedServer} rather than {@code PlayerList}, so it
+     * needs the {@code instanceof} guard below.
      */
     private void setUsingWhitelist(boolean enforce) {
-        if (server.getPlayerList().isUsingWhitelist() != enforce) {
-            server.getPlayerList().setUsingWhiteList(enforce);
+        // 26.x moved the setter to DedicatedServer; an integrated server has no whitelist
+        // to speak of, and this mod is server-side anyway.
+        if (!(server instanceof DedicatedServer dedicated)) {
+            return;
+        }
+
+        if (dedicated.isUsingWhitelist() != enforce) {
+            dedicated.setUsingWhitelist(enforce);
             log.info(enforce
                     ? "Whitelist enforcement is now ON (per the Neko Launcher instance)."
                     : "Whitelist enforcement is now OFF (per the Neko Launcher instance).");
@@ -207,17 +213,12 @@ public final class WhitelistApplier {
 
     private Optional<UUID> resolveName(String name) {
         if (!server.usesAuthentication()) {
-            return Optional.of(offlineUuid(name));
+            // 26.x derives the offline id for us.
+            return Optional.of(NameAndId.createOffline(name).id());
         }
-        return server.getProfileCache() == null
+        return server.services().nameToIdCache() == null
                 ? Optional.empty()
-                : server.getProfileCache().get(name).map(GameProfile::getId);
-    }
-
-    /** How vanilla derives a UUID for an offline-mode player. */
-    private static UUID offlineUuid(String name) {
-        return UUID.nameUUIDFromBytes(
-                ("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8));
+                : server.services().nameToIdCache().get(name).map(NameAndId::id);
     }
 
     /**
@@ -225,10 +226,10 @@ public final class WhitelistApplier {
      * up in whitelist.json and /whitelist list. A cache hit gives a readable name; a miss
      * still matches correctly.
      */
-    private GameProfile profileFor(UUID uuid) {
-        String name = server.getProfileCache() == null
+    private NameAndId entryFor(UUID uuid) {
+        String name = server.services().nameToIdCache() == null
                 ? null
-                : server.getProfileCache().get(uuid).map(GameProfile::getName).orElse(null);
-        return new GameProfile(uuid, name == null ? uuid.toString() : name);
+                : server.services().nameToIdCache().get(uuid).map(NameAndId::name).orElse(null);
+        return new NameAndId(uuid, name == null ? uuid.toString() : name);
     }
 }

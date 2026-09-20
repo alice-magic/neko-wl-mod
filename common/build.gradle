@@ -4,8 +4,8 @@ architectury {
 
 dependencies {
     // Only for the @Environment annotations, which get remapped per platform.
-    modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
-    modApi "dev.architectury:architectury:$rootProject.architectury_api_version"
+    implementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
+    api "dev.architectury:architectury:$rootProject.architectury_api_version"
 }
 
 // The self-check is a plain main() with asserts, not a shipped class.
@@ -20,4 +20,10 @@ tasks.register('selfCheck', JavaExec) {
 
 tasks.named('check') {
     dependsOn 'selfCheck'
+}
+
+// src/test holds SelfCheck, a plain main() with asserts, not a JUnit suite. Newer
+// Gradle fails a test task that discovers nothing, so say that is expected here.
+tasks.named('test') {
+    failOnNoDiscoveredTests = false
 }

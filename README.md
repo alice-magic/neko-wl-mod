@@ -142,7 +142,8 @@ are resolved to a UUID when the list syncs:
 ```
 
 Each Minecraft version lives on its own branch, because the toolchains differ too much to
-share (Java 17 through 25, and 26.x ships deobfuscated with a different Loom plugin).
+share: Java 17 through 25, and 26.x ships deobfuscated, so it declares no mappings, uses
+the `loom-no-remap` plugin, and needs a newer Gradle.
 Inside `common`, the `api` package has no Minecraft imports and is identical on every
 branch; only `mc/WhitelistApplier` differs between the 1.x and 26.x lines.
 
