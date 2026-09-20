@@ -1,0 +1,33 @@
+modLoader = "javafml"
+loaderVersion = "[1,)"
+license = "MIT"
+
+[[mods]]
+modId = "neko_whitelist"
+version = "${version}"
+displayName = "Neko Launcher Whitelist"
+authors = "Furimoe"
+description = '''
+Syncs the server whitelist from a Neko Launcher instance.
+'''
+
+[[dependencies.neko_whitelist]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21,)"
+ordering = "NONE"
+side = "SERVER"
+
+[[dependencies.neko_whitelist]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.1,1.22)"
+ordering = "NONE"
+side = "SERVER"
+
+[[dependencies.neko_whitelist]]
+modId = "architectury"
+type = "required"
+versionRange = "[13.0.0,)"
+ordering = "AFTER"
+side = "SERVER"

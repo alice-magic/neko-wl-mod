@@ -46,14 +46,15 @@ processResources {
 }
 
 shadowJar {
-    dependsOn(jar)
-    mainSpec.sourcePaths.clear()
-    from(zipTree(jar.archiveFile))
-
     configurations = [project.configurations.shadowBundle]
+    archiveClassifier = 'dev-shadow'
+}
+
+remapJar {
+    inputFile.set shadowJar.archiveFile
     archiveClassifier = null
 }
 
 jar {
-    archiveClassifier = "raw"
+    archiveClassifier = 'dev'
 }
