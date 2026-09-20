@@ -45,7 +45,7 @@ Requires [Architectury API](https://modrinth.com/mod/architectury-api) and, on F
 |---|---|
 | `apiKey` | Workspace API key, from **Workspace → Settings → API Key** in the dashboard |
 | `instance` | The instance's URL-safe **name**, not its display name. List them with the curl command below. |
-| `syncSeconds` | How often to re-sync. Clamped to a 60-second minimum. |
+| `syncSeconds` | How often to re-sync. Clamped to a 15-second minimum. |
 | `enforceOverride` | `null` follows the instance's own `enforceWhitelist` setting. `true` or `false` overrides it. |
 | `checkOnJoin` | Ask the API directly when a connecting player is not in the synced list, so someone added seconds ago gets in without waiting for the next sync. |
 | `joinCheckTimeoutMillis` | How long that lookup may hold up a login before the synced answer stands. Clamped to 250–10000. |
@@ -64,8 +64,9 @@ invalidates the old one immediately, so update the config before you rotate.
 ## This mod owns `whitelist.json`
 
 The dashboard is the source of truth. On the first sync after startup the mod **drops
-every entry already in `whitelist.json`**, naming them in the log first, and from then on
-the file mirrors the Neko Launcher whitelist.
+every entry in `whitelist.json` that it did not put there**, naming them in the log first,
+and from then on the file mirrors the Neko Launcher whitelist. Entries it wrote on a
+previous run are recognised and kept, so a restart does not rewrite the file.
 
 Anything added with `/whitelist add` or by hand is removed on the next sync. To keep
 someone, add them in the dashboard.
@@ -102,7 +103,9 @@ nothing.
 
 Enforcement is vanilla's: the mod writes the whitelist and the server's own login check
 rejects anyone missing, with the usual "You are not white-listed on this server!" message.
-No HTTP call happens while a player is connecting, so an API outage cannot stall a login.
+The only HTTP call on a login path is the join check above, which is bounded by
+`joinCheckTimeoutMillis` and only fires for a player the synced list already rejected, so
+an API outage cannot stall a login.
 
 - **Offline API, server up.** The last known list stays in force, with backoff between
   retries. Nobody is kicked.
@@ -122,7 +125,7 @@ No HTTP call happens while a player is connecting, so an API outage cannot stall
 ### Username entries
 
 A whitelist entry can name a UUID or a username. UUID entries are exact. Username entries
-are resolved to a UUID when the list syncs, never during a login:
+are resolved to a UUID when the list syncs:
 
 - **Offline-mode servers** derive the UUID, so it always resolves.
 - **Online-mode servers** need the name in the server's profile cache, which means the
