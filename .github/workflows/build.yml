@@ -23,9 +23,9 @@ jobs:
           echo "java=$(grep -oP '(?<=^java_version=).*' gradle.properties)" >> "$GITHUB_OUTPUT"
           echo "mc=$(grep -oP '(?<=^minecraft_version=).*' gradle.properties)" >> "$GITHUB_OUTPUT"
 
-      # Gradle and Loom need a modern JVM to run; the branch's java_version is the
-      # release the mod compiles to, which Gradle's toolchain handles separately.
-      # Installing both lets a Java 17 target build under a Java 21 Gradle.
+      # Architectury Loom needs a JVM 21 or newer to run, while java_version is
+      # only the release the mod compiles to. Installing both lets a Java 17
+      # target build under a Java 21 Gradle.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -38,7 +38,7 @@ jobs:
       - run: chmod +x ./gradlew
 
       - name: Build
-        run: ./gradlew build --no-daemon -Porg.gradle.java.installations.auto-detect=true
+        run: ./gradlew build --no-daemon
 
       - name: Collect jars
         run: |
@@ -46,6 +46,7 @@ jobs:
           # The raw, dev and sources jars are build intermediates, not releases.
           find . -path ./artifacts -prune -o -name '*.jar' -path '*/build/libs/*' -print \
             | grep -vE -- '-(raw|dev|dev-shadow|sources)\.jar$' \
+            | grep -vE -- '/neko-whitelist-common-' \
             | xargs -r -I{} cp {} artifacts/
           ls -l artifacts
 
