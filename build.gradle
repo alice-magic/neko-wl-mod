@@ -1,0 +1,74 @@
+plugins {
+    id 'java'
+    id 'com.gradleup.shadow' version "${shadow_version}"
+}
+
+group = maven_group
+version = plugin_version
+
+base {
+    archivesName = archives_name
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'spigotmc'
+        url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/'
+    }
+    maven {
+        name = 'sonatype'
+        url = 'https://oss.sonatype.org/content/groups/public/'
+    }
+}
+
+dependencies {
+    // Compiled against Spigot's API rather than Paper's, so the jar loads on plain
+    // Bukkit and Spigot too. Folia differences are handled at runtime, not here.
+    compileOnly "org.spigotmc:spigot-api:$spigot_api_version"
+
+    // Gson ships with the server; bundling it would risk a version clash.
+    compileOnly 'com.google.code.gson:gson:2.10.1'
+    testImplementation 'com.google.code.gson:gson:2.10.1'
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(java_version as int)
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = java_version as int
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('plugin.yml') {
+        expand version: project.version
+    }
+}
+
+shadowJar {
+    archiveClassifier = null
+}
+
+jar {
+    archiveClassifier = 'raw'
+}
+
+tasks.named('assemble') {
+    dependsOn 'shadowJar'
+}
+
+// SelfCheck is a plain main() with asserts, not a JUnit suite.
+tasks.register('selfCheck', JavaExec) {
+    group = 'verification'
+    description = 'Runs the assert-based checks over the Minecraft-free api layer.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.furimoe.nekowhitelist.api.SelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.named('check') {
+    dependsOn 'selfCheck'
+}

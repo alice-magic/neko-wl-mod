@@ -1,0 +1,23 @@
+name: NekoWhitelist
+version: '${version}'
+main: com.furimoe.nekowhitelist.bukkit.NekoWhitelistPlugin
+api-version: '1.20'
+description: Syncs the server whitelist from a Neko Launcher instance.
+author: Furimoe
+website: https://github.com/alice-magic/neko-wl-mod
+
+# Declares Folia support. Servers that do not know this key ignore it, so the same
+# jar still loads on Paper, Spigot and Bukkit.
+folia-supported: true
+
+commands:
+  nekowhitelist:
+    description: Sync the whitelist now, or report what is applied.
+    usage: /<command> <reload|status>
+    aliases: [nekowl]
+    permission: nekowhitelist.admin
+
+permissions:
+  nekowhitelist.admin:
+    description: Use /nekowhitelist. Reaches an API key and decides who may join.
+    default: op
