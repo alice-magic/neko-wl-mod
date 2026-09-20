@@ -23,17 +23,22 @@ jobs:
           echo "java=$(grep -oP '(?<=^java_version=).*' gradle.properties)" >> "$GITHUB_OUTPUT"
           echo "mc=$(grep -oP '(?<=^minecraft_version=).*' gradle.properties)" >> "$GITHUB_OUTPUT"
 
+      # Gradle and Loom need a modern JVM to run; the branch's java_version is the
+      # release the mod compiles to, which Gradle's toolchain handles separately.
+      # Installing both lets a Java 17 target build under a Java 21 Gradle.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: ${{ steps.props.outputs.java }}
+          java-version: |
+            ${{ steps.props.outputs.java }}
+            21
 
       - uses: gradle/actions/setup-gradle@v4
 
       - run: chmod +x ./gradlew
 
       - name: Build
-        run: ./gradlew build --no-daemon
+        run: ./gradlew build --no-daemon -Porg.gradle.java.installations.auto-detect=true
 
       - name: Collect jars
         run: |
