@@ -19,7 +19,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        branch: ['mc/1.20.1', 'mc/1.21.1', 'mc/26.1.2', 'mc/26.2']
+        branch:
+          - 'mc/1.20.1'
+          - 'mc/1.20.4'
+          - 'mc/1.20.6'
+          - 'mc/1.21.1'
+          - 'mc/1.21.4'
+          - 'mc/1.21.8'
+          - 'mc/1.21.11'
+          - 'mc/26.1.2'
+          - 'mc/26.2'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -89,8 +98,42 @@ jobs:
             python3 main-scripts/.github/scripts/publish_modrinth.py --file "$jar" --loader "$loader" --mc "$MC" --tag "$TAG"
           done
 
+  # The Bukkit plugin is a single-module build producing one jar that runs on
+  # Paper, Spigot, Bukkit, Folia and CanvasMC, so it does not fit the mod matrix.
+  plugin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: plugin/bukkit
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: chmod +x ./gradlew
+
+      - run: ./gradlew build --no-daemon
+
+      - name: Collect the plugin jar
+        run: |
+          mkdir -p artifacts
+          find build/libs -name '*.jar'             | grep -vE -- '-(raw|sources)\.jar$'             | xargs -r -I{} cp {} artifacts/
+          ls -l artifacts
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jars-plugin
+          path: artifacts/*.jar
+          if-no-files-found: error
+
   release:
-    needs: build
+    needs: [build, plugin]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
