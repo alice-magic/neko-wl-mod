@@ -1,0 +1,51 @@
+name: Build
+
+on:
+  push:
+    branches: ['mc/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Each branch targets a different Minecraft version, and gradle.properties
+      # is the single place that records which Java it needs.
+      - name: Read build properties
+        id: props
+        run: |
+          echo "java=$(grep -oP '(?<=^java_version=).*' gradle.properties)" >> "$GITHUB_OUTPUT"
+          echo "mc=$(grep -oP '(?<=^minecraft_version=).*' gradle.properties)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ steps.props.outputs.java }}
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: chmod +x ./gradlew
+
+      - name: Build
+        run: ./gradlew build --no-daemon
+
+      - name: Collect jars
+        run: |
+          mkdir -p artifacts
+          # The raw, dev and sources jars are build intermediates, not releases.
+          find . -path ./artifacts -prune -o -name '*.jar' -path '*/build/libs/*' -print \
+            | grep -vE -- '-(raw|dev|dev-shadow|sources)\.jar$' \
+            | xargs -r -I{} cp {} artifacts/
+          ls -l artifacts
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: neko-whitelist-${{ steps.props.outputs.mc }}
+          path: artifacts/*.jar
+          if-no-files-found: error
