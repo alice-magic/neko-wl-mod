@@ -20,24 +20,37 @@ import java.nio.file.Path;
  * @param syncSeconds     how often to re-sync
  * @param enforceOverride {@code null} follows the API's {@code enforceWhitelist};
  *                        a non-null value overrides the instance owner's setting
+ * @param checkOnJoin     ask the API about a player the cached list rejects, so someone
+ *                        added seconds ago gets in without waiting for the next sync
+ * @param joinCheckTimeoutMillis how long that lookup may hold up a login before the
+ *                        cached answer stands
  */
 public record WhitelistConfig(
         String baseUrl,
         String apiKey,
         String instance,
         int syncSeconds,
-        Boolean enforceOverride) {
+        Boolean enforceOverride,
+        boolean checkOnJoin,
+        int joinCheckTimeoutMillis) {
 
     public static final String FILE_NAME = "neko-whitelist.json";
 
     private static final String DEFAULT_BASE_URL = "https://api.neko-launcher.com";
     private static final int DEFAULT_SYNC_SECONDS = 300;
-    private static final int MIN_SYNC_SECONDS = 60;
+    /** The API docs ask for a sync every few minutes, not every few seconds. */
+    private static final int MIN_SYNC_SECONDS = 15;
+
+    private static final int DEFAULT_JOIN_CHECK_TIMEOUT_MILLIS = 2000;
+    /** Long enough to hold a login open; beyond this the cached answer is kinder. */
+    private static final int MAX_JOIN_CHECK_TIMEOUT_MILLIS = 10000;
+    private static final int MIN_JOIN_CHECK_TIMEOUT_MILLIS = 250;
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     public static WhitelistConfig defaults() {
-        return new WhitelistConfig(DEFAULT_BASE_URL, "", "", DEFAULT_SYNC_SECONDS, null);
+        return new WhitelistConfig(DEFAULT_BASE_URL, "", "", DEFAULT_SYNC_SECONDS, null,
+                true, DEFAULT_JOIN_CHECK_TIMEOUT_MILLIS);
     }
 
     /** True once both the key and the instance name are filled in. */
@@ -71,11 +84,9 @@ public record WhitelistConfig(
             baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
         }
 
-        int syncSeconds = json.has("syncSeconds") && json.get("syncSeconds").isJsonPrimitive()
-                ? json.get("syncSeconds").getAsInt()
-                : defaults.syncSeconds();
         // A too-eager poll is what the API docs explicitly ask plugins not to do.
-        syncSeconds = Math.max(MIN_SYNC_SECONDS, syncSeconds);
+        int syncSeconds = Math.max(MIN_SYNC_SECONDS,
+                integer(json, "syncSeconds", defaults.syncSeconds()));
 
         Boolean enforceOverride = json.has("enforceOverride") && !json.get("enforceOverride").isJsonNull()
                 ? json.get("enforceOverride").getAsBoolean()
@@ -86,7 +97,10 @@ public record WhitelistConfig(
                 string(json, "apiKey", defaults.apiKey()).trim(),
                 string(json, "instance", defaults.instance()).trim(),
                 syncSeconds,
-                enforceOverride);
+                enforceOverride,
+                bool(json, "checkOnJoin", defaults.checkOnJoin()),
+                clamp(integer(json, "joinCheckTimeoutMillis", defaults.joinCheckTimeoutMillis()),
+                        MIN_JOIN_CHECK_TIMEOUT_MILLIS, MAX_JOIN_CHECK_TIMEOUT_MILLIS));
     }
 
     JsonObject toJson() {
@@ -95,12 +109,30 @@ public record WhitelistConfig(
         json.addProperty("apiKey", apiKey);
         json.addProperty("instance", instance);
         json.addProperty("syncSeconds", syncSeconds);
+        json.addProperty("checkOnJoin", checkOnJoin);
+        json.addProperty("joinCheckTimeoutMillis", joinCheckTimeoutMillis);
         if (enforceOverride == null) {
             json.add("enforceOverride", com.google.gson.JsonNull.INSTANCE);
         } else {
             json.addProperty("enforceOverride", enforceOverride);
         }
         return json;
+    }
+
+    private static int integer(JsonObject json, String key, int fallback) {
+        return json.has(key) && json.get(key).isJsonPrimitive()
+                ? json.get(key).getAsInt()
+                : fallback;
+    }
+
+    private static boolean bool(JsonObject json, String key, boolean fallback) {
+        return json.has(key) && json.get(key).isJsonPrimitive()
+                ? json.get(key).getAsBoolean()
+                : fallback;
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.min(max, Math.max(min, value));
     }
 
     private static String string(JsonObject json, String key, String fallback) {

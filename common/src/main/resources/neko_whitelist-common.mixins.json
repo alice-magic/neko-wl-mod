@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.furimoe.nekowhitelist.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "server": [
+    "PlayerListMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

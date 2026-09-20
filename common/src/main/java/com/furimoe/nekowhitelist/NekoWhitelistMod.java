@@ -2,8 +2,11 @@ package com.furimoe.nekowhitelist;
 
 import com.furimoe.nekowhitelist.api.SnapshotCache;
 import com.furimoe.nekowhitelist.api.WhitelistConfig;
+import com.furimoe.nekowhitelist.mc.JoinGate;
+import com.furimoe.nekowhitelist.mc.WhitelistCommand;
 import com.furimoe.nekowhitelist.mc.WhitelistSyncService;
 
+import dev.architectury.event.events.common.CommandRegistrationEvent;
 import dev.architectury.event.events.common.LifecycleEvent;
 import dev.architectury.platform.Platform;
 
@@ -30,7 +33,20 @@ public final class NekoWhitelistMod {
     private NekoWhitelistMod() {
     }
 
+    /**
+     * The gate the loader-specific login hooks consult, or null while the mod is idle.
+     *
+     * <p>Architectury has no common login event, so each loader hooks its own and calls
+     * back into this.
+     */
+    public static JoinGate joinGate() {
+        return service == null ? null : service.joinGate();
+    }
+
     public static void init() {
+        CommandRegistrationEvent.EVENT.register((dispatcher, registry, selection) ->
+                WhitelistCommand.register(dispatcher, () -> service));
+
         LifecycleEvent.SERVER_STARTED.register(server -> {
             WhitelistConfig config;
             try {

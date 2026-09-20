@@ -34,6 +34,7 @@ public final class WhitelistSyncService {
     private final SnapshotCache cache;
     private final NekoWhitelistClient client;
     private final WhitelistApplier applier;
+    private final JoinGate joinGate;
     private final Logger log;
 
     private final AtomicBoolean stopped = new AtomicBoolean();
@@ -51,6 +52,7 @@ public final class WhitelistSyncService {
         this.log = log;
         this.client = new NekoWhitelistClient(config);
         this.applier = new WhitelistApplier(server, log);
+        this.joinGate = new JoinGate(config, client, log);
     }
 
     /**
@@ -80,6 +82,47 @@ public final class WhitelistSyncService {
         });
 
         executor.schedule(this::syncOnce, 1, TimeUnit.SECONDS);
+    }
+
+    /** The login hooks ask this whether a connecting player may in. */
+    public JoinGate joinGate() {
+        return joinGate;
+    }
+
+    /**
+     * Runs a sync now, off the calling thread.
+     *
+     * <p>For the reload command: the caller gets control straight back, and the result
+     * shows up in the log and in the whitelist like any other sync. The executor is
+     * single-threaded, so this queues behind a sync already in flight rather than racing
+     * it, and the scheduled loop keeps running either way.
+     */
+    public void syncNow() {
+        if (stopped.get() || executor == null || executor.isShutdown()) {
+            log.warn("Whitelist sync is stopped; fix the config and restart the server.");
+            return;
+        }
+        executor.execute(this::syncOnce);
+    }
+
+    /** One line for the status command: what the mod currently believes and enforces. */
+    public String status() {
+        WhitelistSnapshot current = lastGood;
+        if (stopped.get()) {
+            return "Neko Launcher whitelist: stopped (see the server log). "
+                    + (current == null ? "No list applied." : current.size() + " entries still applied.");
+        }
+        if (current == null) {
+            return "Neko Launcher whitelist: waiting for the first sync of '"
+                    + config.instance() + "'.";
+        }
+
+        boolean enforce = config.enforceOverride() == null
+                ? current.enforce()
+                : config.enforceOverride();
+        return "Neko Launcher whitelist: " + current.size() + " entries from '"
+                + config.instance() + "', enforcement " + (enforce ? "on" : "off")
+                + ", syncing every " + config.syncSeconds() + "s.";
     }
 
     public void stop() {
@@ -164,6 +207,8 @@ public final class WhitelistSyncService {
         boolean enforce = config.enforceOverride() == null
                 ? snapshot.enforce()
                 : config.enforceOverride();
+
+        joinGate.update(snapshot, enforce);
 
         server.execute(() -> {
             try {
