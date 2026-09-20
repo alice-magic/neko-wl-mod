@@ -1,0 +1,46 @@
+plugins {
+    id "dev.architectury.loom" version "${architectury_loom_version}" apply false
+    id "architectury-plugin" version "${architectury_plugin_version}"
+    id "com.gradleup.shadow" version "${shadow_version}" apply false
+}
+
+architectury {
+    minecraft = project.minecraft_version
+}
+
+allprojects {
+    group = rootProject.maven_group
+    version = rootProject.mod_version
+}
+
+subprojects {
+    apply plugin: 'dev.architectury.loom'
+    apply plugin: 'architectury-plugin'
+
+    base {
+        archivesName = "$rootProject.archives_name-$project.name"
+    }
+
+    repositories {
+        maven { url "https://maven.architectury.dev/" }
+    }
+
+    loom {
+        silentMojangMappingsLicense()
+    }
+
+    dependencies {
+        minecraft "com.mojang:minecraft:$rootProject.minecraft_version"
+        mappings loom.officialMojangMappings()
+    }
+
+    java {
+        withSourcesJar()
+        toolchain.languageVersion = JavaLanguageVersion.of(rootProject.java_version as int)
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        options.release = rootProject.java_version as int
+    }
+}
