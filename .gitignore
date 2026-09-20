@@ -1,0 +1,17 @@
+.gradle/
+build/
+out/
+run/
+*.log
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# Never commit a real key
+neko-whitelist.json
+neko-whitelist-cache.json
