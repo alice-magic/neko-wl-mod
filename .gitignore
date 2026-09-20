@@ -15,3 +15,5 @@ run/
 # Never commit a real key
 neko-whitelist.json
 neko-whitelist-cache.json
+
+# Gradle wrapper jar is committed on purpose; everything else under build/ is not.
