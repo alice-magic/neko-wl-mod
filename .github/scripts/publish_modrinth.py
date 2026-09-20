@@ -28,6 +28,9 @@ LOADER_ALIASES = {
     "fabric": ["fabric", "quilt"],
     "forge": ["forge"],
     "neoforge": ["neoforge"],
+    # One Bukkit jar runs on all of these: they share the Bukkit API, and the
+    # Folia scheduler difference is handled at runtime.
+    "plugin": ["bukkit", "spigot", "paper", "folia", "purpur"],
 }
 
 
@@ -80,7 +83,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--file", required=True)
     parser.add_argument("--loader", required=True)
-    parser.add_argument("--mc", required=True, help="Minecraft version, e.g. 1.21.1")
+    parser.add_argument("--mc", required=True,
+                        help="Minecraft version, or a comma-separated list for the plugin")
     parser.add_argument("--tag", required=True, help="Release tag, e.g. v1.0.0")
     args = parser.parse_args()
 
@@ -95,24 +99,27 @@ def main():
         return 0
 
     # Unique per loader and Minecraft version, since one release publishes eight jars.
-    version_number = f"{args.tag.lstrip('v')}+mc{args.mc}-{args.loader}"
+    version_number = (f"{args.tag.lstrip('v')}-plugin" if args.loader == "plugin"
+                      else f"{args.tag.lstrip('v')}+mc{args.mc}-{args.loader}")
 
     if version_exists(token, version_number):
         print(f"{version_number} already on Modrinth; nothing to do.")
         return 0
 
+    is_plugin = args.loader == "plugin"
+
     metadata = {
-        "name": f"{args.tag} for {args.mc} ({args.loader})",
+        "name": (f"{args.tag} for Bukkit servers" if is_plugin
+                 else f"{args.tag} for {args.mc} ({args.loader})"),
         "version_number": version_number,
-        "game_versions": [args.mc],
+        "game_versions": [v.strip() for v in args.mc.split(",") if v.strip()],
         "version_type": "release",
         "loaders": loaders,
         "featured": False,
         "project_id": PROJECT_ID,
-        "dependencies": [
-            # Architectury API is required at runtime on every loader.
-            {"project_id": "lhGA9TYQ", "dependency_type": "required"},
-        ],
+        # The plugin bundles what it needs; only the mod requires Architectury.
+        "dependencies": ([] if is_plugin else
+                         [{"project_id": "lhGA9TYQ", "dependency_type": "required"}]),
         "file_parts": ["file"],
         "primary_file": "file",
     }

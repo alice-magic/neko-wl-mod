@@ -132,6 +132,27 @@ jobs:
           path: artifacts/*.jar
           if-no-files-found: error
 
+      # The plugin lives in the same Modrinth project as the mod, distinguished by
+      # its loaders. One jar covers every listed Minecraft version.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          sparse-checkout: .github/scripts
+          sparse-checkout-cone-mode: false
+          path: main-scripts
+
+      - name: Publish the plugin to Modrinth
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_API_KEY }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          # One jar covers every listed Minecraft version. Looping rather than
+          # globbing into a single argument, which would swallow a second jar.
+          MC='1.20.1,1.20.2,1.20.4,1.20.6,1.21,1.21.1,1.21.3,1.21.4,1.21.5,1.21.6,1.21.7,1.21.8,1.21.9,1.21.11,26.1,26.1.1,26.1.2,26.2'
+          for jar in artifacts/*.jar; do
+            python3 main-scripts/.github/scripts/publish_modrinth.py --file "$jar" --loader plugin --tag "$TAG" --mc "$MC"
+          done
+
   release:
     needs: [build, plugin]
     runs-on: ubuntu-latest
