@@ -143,7 +143,8 @@ are resolved to a UUID when the list syncs:
 Each Minecraft version lives on its own branch, because the toolchains differ too much to
 share (Java 17 through 25, and 26.x ships deobfuscated with a different Loom plugin).
 Inside `common`, the `api` package has no Minecraft imports and is identical on every
-branch; only `mc/WhitelistApplier` differs between the 1.x and 26.x lines.
+branch; only `mc/WhitelistApplier` and `mixin/PlayerListMixin` differ between the 1.x and
+26.x lines, because 26.x keys the whitelist on `NameAndId` rather than `GameProfile`.
 
 ## License
 

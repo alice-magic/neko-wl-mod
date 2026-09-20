@@ -1,0 +1,35 @@
+modLoader = "javafml"
+loaderVersion = "[47,)"
+license = "MIT"
+
+[[mods]]
+modId = "neko_whitelist"
+version = "${version}"
+displayName = "Neko Launcher Whitelist"
+authors = "Furimoe"
+description = '''
+Syncs the server whitelist from a Neko Launcher instance.
+'''
+
+# Server-side only, so a vanilla or differently-modded client must not be
+# refused for not carrying this mod.
+[[mods.dependencies.neko_whitelist]]
+modId = "forge"
+mandatory = true
+versionRange = "[47,)"
+ordering = "NONE"
+side = "SERVER"
+
+[[mods.dependencies.neko_whitelist]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.20.1,1.21)"
+ordering = "NONE"
+side = "SERVER"
+
+[[mods.dependencies.neko_whitelist]]
+modId = "architectury"
+mandatory = true
+versionRange = "[9.0.0,)"
+ordering = "AFTER"
+side = "SERVER"
