@@ -20,20 +20,20 @@ config = "neko_whitelist-common.mixins.json"
 [[dependencies.neko_whitelist]]
 modId = "neoforge"
 type = "required"
-versionRange = "[26.2,)"
+versionRange = "[26.1,)"
 ordering = "NONE"
 side = "SERVER"
 
 [[dependencies.neko_whitelist]]
 modId = "minecraft"
 type = "required"
-versionRange = "[26.2,27)"
+versionRange = "[26.1.2,27)"
 ordering = "NONE"
 side = "SERVER"
 
 [[dependencies.neko_whitelist]]
 modId = "architectury"
 type = "required"
-versionRange = "[21.0.0,)"
+versionRange = "[20.0.0,)"
 ordering = "AFTER"
 side = "SERVER"
