@@ -10,11 +10,9 @@ import net.minecraft.server.players.UserWhiteListEntry;
 import org.slf4j.Logger;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -45,8 +43,8 @@ public final class WhitelistApplier {
      */
     private final Map<UUID, GameProfile> applied = new HashMap<>();
 
-    /** The owner is warned about hand-added entries once, not every five minutes. */
-    private boolean adoptedExisting;
+    /** whitelist.json is taken over once, on the first sync, not every five minutes. */
+    private boolean droppedExisting;
 
     public WhitelistApplier(MinecraftServer server, Logger log) {
         this.server = server;
@@ -66,7 +64,7 @@ public final class WhitelistApplier {
         UserWhiteList whitelist = server.getPlayerList().getWhiteList();
         Set<UUID> wanted = resolve(snapshot);
 
-        adoptExistingEntries(whitelist, wanted);
+        dropExistingEntries(whitelist);
 
         int removed = 0;
         for (UUID uuid : List.copyOf(applied.keySet())) {
@@ -95,40 +93,36 @@ public final class WhitelistApplier {
     }
 
     /**
-     * Takes ownership of whatever was already in whitelist.json on the first sync.
+     * Drops whatever was already in whitelist.json, once, on the first sync.
      *
      * <p>The dashboard is the source of truth, so entries added by hand or with
-     * {@code /whitelist add} are dropped. Name them once so the owner can move them into
+     * {@code /whitelist add} are dropped. Name them first so the owner can move them into
      * the dashboard rather than wondering where they went.
+     *
+     * <p>Removal goes through the entry objects from {@link UserWhiteList#getEntries()}
+     * rather than through keys. {@code getUserList()} returns player <em>names</em>, and
+     * the UUID a name maps back to need not be the one actually stored in the file; since
+     * the whitelist is keyed by UUID, a reconstructed key that misses would turn the
+     * removal into a silent no-op while the log claimed success. Handing back the entry
+     * we were given cannot miss, and unlike {@code clear()} it exists on every target
+     * version.
      */
-    private void adoptExistingEntries(UserWhiteList whitelist, Set<UUID> wanted) {
-        if (adoptedExisting) {
+    private void dropExistingEntries(UserWhiteList whitelist) {
+        if (droppedExisting) {
             return;
         }
-        adoptedExisting = true;
+        droppedExisting = true;
 
-        List<String> orphans = new ArrayList<>();
-        for (String name : whitelist.getUserList()) {
-            Optional<UUID> uuid = resolveName(name.toLowerCase(Locale.ROOT));
-            if (uuid.isEmpty()) {
-                // Unresolvable, so it cannot be diffed; vanilla keeps it and we say so.
-                log.warn("Existing whitelist entry '{}' could not be resolved to a UUID; "
-                        + "leaving it in place.", name);
-                continue;
-            }
-
-            GameProfile profile = new GameProfile(uuid.get(), name);
-            applied.put(uuid.get(), profile);
-            if (!wanted.contains(uuid.get())) {
-                orphans.add(name);
-            }
+        List<UserWhiteListEntry> existing = List.copyOf(whitelist.getEntries());
+        if (existing.isEmpty()) {
+            return;
         }
 
-        if (!orphans.isEmpty()) {
-            log.warn("This mod owns whitelist.json. Removing {} entry/entries that are not in "
-                            + "the Neko Launcher whitelist: {}. Add them in the dashboard to keep them.",
-                    orphans.size(), String.join(", ", orphans));
-        }
+        log.warn("This mod owns whitelist.json. Dropping {} pre-existing entry/entries: {}. "
+                        + "Anything you want to keep must be added in the Neko Launcher dashboard.",
+                existing.size(), String.join(", ", whitelist.getUserList()));
+
+        existing.forEach(whitelist::remove);
     }
 
     /**

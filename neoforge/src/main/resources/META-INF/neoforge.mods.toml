@@ -7,6 +7,9 @@ modId = "neko_whitelist"
 version = "${version}"
 displayName = "Neko Launcher Whitelist"
 authors = "Furimoe"
+# Server-side only, so a vanilla or differently-modded client must not be
+# refused for not carrying this mod.
+displayTest = "IGNORE_ALL_VERSION"
 description = '''
 Syncs the server whitelist from a Neko Launcher instance.
 '''
