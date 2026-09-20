@@ -41,6 +41,7 @@ jobs:
           # The raw, dev and sources jars are build intermediates, not releases.
           find . -path ./artifacts -prune -o -name '*.jar' -path '*/build/libs/*' -print \
             | grep -vE -- '-(raw|dev|dev-shadow|sources)\.jar$' \
+            | grep -vE -- '/neko-whitelist-common-' \
             | xargs -r -I{} cp {} artifacts/
           ls -l artifacts
 

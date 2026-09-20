@@ -60,6 +60,7 @@ jobs:
           find . -path ./artifacts -prune -o -path ./main-scripts -prune -o \
             -name '*.jar' -path '*/build/libs/*' -print \
             | grep -vE -- '-(raw|dev|dev-shadow|sources)\.jar$' \
+            | grep -vE -- '/neko-whitelist-common-' \
             | while read -r jar; do
                 # Name each jar for its Minecraft version so eight of them can
                 # share one release page without colliding.

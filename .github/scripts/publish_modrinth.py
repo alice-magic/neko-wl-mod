@@ -16,7 +16,10 @@ import urllib.error
 import urllib.request
 
 API = "https://api.modrinth.com/v2"
-PROJECT = "neko-launcher-whitelist"
+
+# The slug reads better in a URL, but the version endpoint wants the base62 id.
+PROJECT_ID = "Tc9kD8Vb"
+PROJECT_SLUG = "neko-launcher-whitelist"
 
 # Architectury only ships a Forge target on 1.20.1; everything later is NeoForge.
 # The Fabric jar also runs on Quilt, so declare both rather than making Quilt
@@ -42,7 +45,7 @@ def request(method, url, token, data=None, headers=None):
 def version_exists(token, version_number):
     """True when this exact version_number is already published."""
     try:
-        _, versions = request("GET", f"{API}/project/{PROJECT}/version", token)
+        _, versions = request("GET", f"{API}/project/{PROJECT_SLUG}/version", token)
     except urllib.error.HTTPError as error:
         if error.code == 404:
             return False
@@ -105,7 +108,7 @@ def main():
         "version_type": "release",
         "loaders": loaders,
         "featured": False,
-        "project_id": PROJECT,
+        "project_id": PROJECT_ID,
         "dependencies": [
             # Architectury API is required at runtime on every loader.
             {"project_id": "lhGA9TYQ", "dependency_type": "required"},
