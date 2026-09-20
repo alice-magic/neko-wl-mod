@@ -24,7 +24,12 @@ configurations {
 
 dependencies {
     modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
-    modApi "dev.architectury:architectury-fabric:$rootProject.architectury_api_version"
+    // Architectury API pulls in a Fabric API build for 1.21, which refuses to load on
+    // 1.21.1. Take ours and drop its transitive copy.
+    modApi("dev.architectury:architectury-fabric:$rootProject.architectury_api_version") {
+        exclude group: "net.fabricmc.fabric-api"
+    }
+    modImplementation "net.fabricmc.fabric-api:fabric-api:$rootProject.fabric_api_version"
 
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':common', configuration: 'transformProductionFabric')

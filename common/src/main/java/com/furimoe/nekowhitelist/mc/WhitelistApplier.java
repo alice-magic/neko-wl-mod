@@ -1,5 +1,6 @@
 package com.furimoe.nekowhitelist.mc;
 
+import com.furimoe.nekowhitelist.api.NekoWhitelistClient;
 import com.furimoe.nekowhitelist.api.WhitelistSnapshot;
 import com.mojang.authlib.GameProfile;
 
@@ -10,6 +11,7 @@ import net.minecraft.server.players.UserWhiteListEntry;
 import org.slf4j.Logger;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -44,7 +46,15 @@ public final class WhitelistApplier {
     private final Map<UUID, GameProfile> applied = new HashMap<>();
 
     /** whitelist.json is taken over once, on the first sync, not every five minutes. */
-    private boolean droppedExisting;
+    private boolean reconciledExisting;
+
+    /**
+     * UUIDs the previous run left in whitelist.json, from our own cache.
+     *
+     * <p>Set before the first apply so the takeover can tell our entries from ones the
+     * owner added by hand.
+     */
+    private Set<UUID> knownFromCache = Set.of();
 
     public WhitelistApplier(MinecraftServer server, Logger log) {
         this.server = server;
@@ -60,11 +70,16 @@ public final class WhitelistApplier {
      *
      * @param enforce whether the whitelist should be switched on at all
      */
+    /** Tells the first apply which entries a previous run of this mod left behind. */
+    public void rememberCached(WhitelistSnapshot cached) {
+        this.knownFromCache = Set.copyOf(cached.uuids());
+    }
+
     public void apply(WhitelistSnapshot snapshot, boolean enforce) {
         UserWhiteList whitelist = server.getPlayerList().getWhiteList();
         Set<UUID> wanted = resolve(snapshot);
 
-        dropExistingEntries(whitelist);
+        reconcileExistingEntries(whitelist, knownFromCache);
 
         int removed = 0;
         for (UUID uuid : List.copyOf(applied.keySet())) {
@@ -93,36 +108,63 @@ public final class WhitelistApplier {
     }
 
     /**
-     * Drops whatever was already in whitelist.json, once, on the first sync.
+     * Takes over whitelist.json once, on the first sync.
      *
-     * <p>The dashboard is the source of truth, so entries added by hand or with
-     * {@code /whitelist add} are dropped. Name them first so the owner can move them into
-     * the dashboard rather than wondering where they went.
+     * <p>Entries this mod wrote on a previous run are recognised by name and kept, so a
+     * restart neither rewrites the file nor accuses the owner of adding them. Everything
+     * else came from {@code /whitelist add} or an editor; the dashboard is the source of
+     * truth, so it is named in the log and dropped.
      *
-     * <p>Removal goes through the entry objects from {@link UserWhiteList#getEntries()}
-     * rather than through keys. {@code getUserList()} returns player <em>names</em>, and
-     * the UUID a name maps back to need not be the one actually stored in the file; since
-     * the whitelist is keyed by UUID, a reconstructed key that misses would turn the
-     * removal into a silent no-op while the log claimed success. Handing back the entry
-     * we were given cannot miss, and unlike {@code clear()} it exists on every target
-     * version.
+     * <p>{@code known} is the previous run's snapshot, read back from our own cache. It is
+     * the only thing that can tell our entries from the owner's, since whitelist.json
+     * records no provenance. Our entries carry the UUID as their name, which is what makes
+     * them recognisable here.
+     *
+     * <p>Entries are dropped by handing back the objects from
+     * {@link UserWhiteList#getEntries()}. Removing by key would mean reconstructing a UUID
+     * from a name, and a reconstructed key that misses turns the removal into a silent
+     * no-op while the log claims success. {@code clear()} would be simpler but only exists
+     * on 26.x.
      */
-    private void dropExistingEntries(UserWhiteList whitelist) {
-        if (droppedExisting) {
+    private void reconcileExistingEntries(UserWhiteList whitelist, Set<UUID> known) {
+        if (reconciledExisting) {
             return;
         }
-        droppedExisting = true;
+        reconciledExisting = true;
 
         List<UserWhiteListEntry> existing = List.copyOf(whitelist.getEntries());
         if (existing.isEmpty()) {
             return;
         }
 
-        log.warn("This mod owns whitelist.json. Dropping {} pre-existing entry/entries: {}. "
-                        + "Anything you want to keep must be added in the Neko Launcher dashboard.",
-                existing.size(), String.join(", ", whitelist.getUserList()));
+        Set<String> ours = new HashSet<>();
+        for (UUID uuid : known) {
+            ours.add(uuid.toString());
+        }
 
+        List<String> foreign = new ArrayList<>();
+        for (String name : whitelist.getUserList()) {
+            UUID uuid = ours.contains(name) ? NekoWhitelistClient.parseUndashed(name) : null;
+            if (uuid != null) {
+                applied.put(uuid, new GameProfile(uuid, name));
+            } else {
+                foreign.add(name);
+            }
+        }
+
+        if (foreign.isEmpty()) {
+            return;
+        }
+
+        log.warn("This mod owns whitelist.json. Dropping {} entry/entries that did not come "
+                        + "from Neko Launcher: {}. Add them in the dashboard to keep them.",
+                foreign.size(), String.join(", ", foreign));
+
+        // An entry exposes neither its UUID nor its name publicly, so which object is
+        // which cannot be read off. Drop them all and let the add loop below put ours
+        // straight back: one extra rewrite, only on the run that finds foreign entries.
         existing.forEach(whitelist::remove);
+        applied.clear();
     }
 
     /**

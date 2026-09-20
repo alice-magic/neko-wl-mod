@@ -124,7 +124,7 @@ public final class NekoWhitelistClient {
     }
 
     /** Returns null rather than throwing, so one malformed row cannot fail a whole sync. */
-    static UUID parseUndashed(String raw) {
+    public static UUID parseUndashed(String raw) {
         if (raw == null) {
             return null;
         }

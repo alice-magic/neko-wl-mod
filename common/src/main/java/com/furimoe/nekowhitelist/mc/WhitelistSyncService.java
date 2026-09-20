@@ -65,6 +65,9 @@ public final class WhitelistSyncService {
             lastGood = cached.get();
             log.info("Loaded {} cached whitelist entries while the first sync runs.",
                     lastGood.size());
+            // Tells the applier which entries in whitelist.json we wrote last run, so a
+            // restart does not mistake them for the owner's and rewrite the file.
+            applier.rememberCached(lastGood);
             applyOnServerThread(lastGood);
         } else {
             log.info("No whitelist cache yet; waiting for the first sync before enforcing.");
