@@ -62,6 +62,20 @@ jobs:
           path: artifacts/*.jar
           if-no-files-found: error
 
+      # One Modrinth version per loader, so someone filtering by Fabric or
+      # NeoForge only sees the jar that fits their server. Skipped silently
+      # when the secret is absent, so a fork can still cut releases.
+      - name: Publish to Modrinth
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_API_KEY }}
+          MC: ${{ steps.props.outputs.mc }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          for jar in artifacts/*.jar; do
+            loader=$(basename "$jar" | cut -d- -f3)
+            python3 .github/scripts/publish_modrinth.py               --file "$jar" --loader "$loader" --mc "$MC" --tag "$TAG"
+          done
+
   release:
     needs: build
     runs-on: ubuntu-latest
