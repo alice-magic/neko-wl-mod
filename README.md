@@ -35,7 +35,9 @@ Requires [Architectury API](https://modrinth.com/mod/architectury-api) and, on F
   "apiKey": "nl_...",
   "instance": "survival-smp",
   "syncSeconds": 300,
-  "enforceOverride": null
+  "enforceOverride": null,
+  "checkOnJoin": true,
+  "joinCheckTimeoutMillis": 2000
 }
 ```
 
@@ -45,6 +47,8 @@ Requires [Architectury API](https://modrinth.com/mod/architectury-api) and, on F
 | `instance` | The instance's URL-safe **name**, not its display name. List them with the curl command below. |
 | `syncSeconds` | How often to re-sync. Clamped to a 60-second minimum. |
 | `enforceOverride` | `null` follows the instance's own `enforceWhitelist` setting. `true` or `false` overrides it. |
+| `checkOnJoin` | Ask the API directly when a connecting player is not in the synced list, so someone added seconds ago gets in without waiting for the next sync. |
+| `joinCheckTimeoutMillis` | How long that lookup may hold up a login before the synced answer stands. Clamped to 250–10000. |
 
 To find the instance name:
 
@@ -69,6 +73,31 @@ someone, add them in the dashboard.
 `/whitelist reload` re-reads the file and will drop the mod's entries until the next sync
 brings them back.
 
+## Commands
+
+| Command | Does |
+|---|---|
+| `/nekowhitelist reload` | Syncs now instead of waiting for the timer |
+| `/nekowhitelist status` | Reports the entry count, instance, enforcement and interval |
+
+Both need permission level 4, the same as `/stop`, and always work from the console. The
+command reaches an API key and decides who may join, so it is deliberately out of reach
+for ordinary operators.
+
+## Staying current
+
+Three things keep the server close to the dashboard, in increasing order of immediacy:
+
+1. **The poll.** `syncSeconds`, 5 minutes by default, down to 15 if you want it tighter.
+   The API has no webhook, so polling is the only push-free option.
+2. **`/nekowhitelist reload`.** Applies a dashboard change straight away.
+3. **The join check.** A player the synced list does not know is re-checked against the
+   API as they connect, so an addition made seconds ago still lets them in. Turn it off
+   with `checkOnJoin: false` if you would rather no login ever waits on the network.
+
+A player already in the synced list never triggers a lookup, so the common join costs
+nothing.
+
 ## How it behaves
 
 Enforcement is vanilla's: the mod writes the whitelist and the server's own login check
@@ -85,7 +114,10 @@ No HTTP call happens while a player is connecting, so an API outage cannot stall
 - **Bad key (`401`) or unknown instance (`404`).** Logged once and the sync loop stops,
   since retrying cannot fix either. Any list already applied keeps working; fix the config
   and restart.
-- **Steady state.** A sync with no dashboard changes writes nothing to disk.
+- **Steady state.** A sync with no dashboard changes writes nothing to disk, and a
+  restart with no changes does not rewrite `whitelist.json` either.
+- **Bans are left alone.** The join check only reconsiders a whitelist refusal. A banned
+  player, an IP ban and a full server are never overridden.
 
 ### Username entries
 
