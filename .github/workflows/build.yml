@@ -23,10 +23,15 @@ jobs:
           echo "java=$(grep -oP '(?<=^java_version=).*' gradle.properties)" >> "$GITHUB_OUTPUT"
           echo "mc=$(grep -oP '(?<=^minecraft_version=).*' gradle.properties)" >> "$GITHUB_OUTPUT"
 
+      # Architectury Loom needs a JVM 21 or newer to run, while java_version is
+      # only the release the mod compiles to. Installing both lets a Java 17
+      # target build under a Java 21 Gradle.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: ${{ steps.props.outputs.java }}
+          java-version: |
+            ${{ steps.props.outputs.java }}
+            21
 
       - uses: gradle/actions/setup-gradle@v4
 
