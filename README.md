@@ -145,7 +145,10 @@ Each Minecraft version lives on its own branch, because the toolchains differ to
 share: Java 17 through 25, and 26.x ships deobfuscated, so it declares no mappings, uses
 the `loom-no-remap` plugin, and needs a newer Gradle.
 Inside `common`, the `api` package has no Minecraft imports and is identical on every
-branch; only `mc/WhitelistApplier` differs between the 1.x and 26.x lines.
+branch. Only three files differ between the 1.x and 26.x lines: `mc/WhitelistApplier` and
+`mixin/PlayerListMixin`, because 26.x keys the whitelist on `NameAndId` rather than
+`GameProfile`, and `mc/WhitelistCommand`, because 26.x replaced integer permission levels
+with named permission sets. The two 26.x branches are identical apart from versions.
 
 ## License
 
