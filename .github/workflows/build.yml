@@ -2,7 +2,7 @@ name: Build
 
 on:
   push:
-    branches: ['mc/**']
+    branches: ['plugin/**']
   pull_request:
   workflow_dispatch:
 
@@ -15,38 +15,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Each branch targets a different Minecraft version, and gradle.properties
-      # is the single place that records which Java it needs.
-      - name: Read build properties
-        id: props
-        run: |
-          echo "java=$(grep -oP '(?<=^java_version=).*' gradle.properties)" >> "$GITHUB_OUTPUT"
-          echo "mc=$(grep -oP '(?<=^minecraft_version=).*' gradle.properties)" >> "$GITHUB_OUTPUT"
-
+      # The plugin targets Java 17 so it runs on older servers, but Gradle wants
+      # a newer JVM to run itself.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: ${{ steps.props.outputs.java }}
+          java-version: |
+            17
+            21
 
       - uses: gradle/actions/setup-gradle@v4
 
       - run: chmod +x ./gradlew
 
-      - name: Build
-        run: ./gradlew build --no-daemon
+      - run: ./gradlew build --no-daemon
 
-      - name: Collect jars
+      - name: Collect the plugin jar
         run: |
           mkdir -p artifacts
-          # The raw, dev and sources jars are build intermediates, not releases.
-          find . -path ./artifacts -prune -o -name '*.jar' -path '*/build/libs/*' -print \
-            | grep -vE -- '-(raw|dev|dev-shadow|sources)\.jar$' \
-            | grep -vE -- '/neko-whitelist-common-' \
+          find build/libs -name '*.jar' \
+            | grep -vE -- '-(raw|sources)\.jar$' \
             | xargs -r -I{} cp {} artifacts/
           ls -l artifacts
 
       - uses: actions/upload-artifact@v4
         with:
-          name: neko-whitelist-${{ steps.props.outputs.mc }}
+          name: neko-whitelist-plugin
           path: artifacts/*.jar
           if-no-files-found: error
