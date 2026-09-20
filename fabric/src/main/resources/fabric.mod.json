@@ -17,8 +17,8 @@
   },
   "depends": {
     "fabricloader": ">=0.15.0",
-    "minecraft": "1.21.1",
-    "architectury": ">=13.0.0"
+    "minecraft": "1.21.11",
+    "architectury": ">=19.0.0"
   },
   "mixins": [
     "neko_whitelist-common.mixins.json"
