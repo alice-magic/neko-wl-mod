@@ -26,6 +26,15 @@ jobs:
         with:
           ref: ${{ matrix.branch }}
 
+      # The publish script lives on main; this job builds a version branch,
+      # which does not carry it.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          sparse-checkout: .github/scripts
+          sparse-checkout-cone-mode: false
+          path: main-scripts
+
       - name: Read build properties
         id: props
         run: |
@@ -35,7 +44,9 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: ${{ steps.props.outputs.java }}
+          java-version: |
+            ${{ steps.props.outputs.java }}
+            21
 
       - uses: gradle/actions/setup-gradle@v4
 
@@ -46,7 +57,8 @@ jobs:
       - name: Collect jars
         run: |
           mkdir -p artifacts
-          find . -path ./artifacts -prune -o -name '*.jar' -path '*/build/libs/*' -print \
+          find . -path ./artifacts -prune -o -path ./main-scripts -prune -o \
+            -name '*.jar' -path '*/build/libs/*' -print \
             | grep -vE -- '-(raw|dev|dev-shadow|sources)\.jar$' \
             | while read -r jar; do
                 # Name each jar for its Minecraft version so eight of them can
@@ -73,7 +85,7 @@ jobs:
         run: |
           for jar in artifacts/*.jar; do
             loader=$(basename "$jar" | cut -d- -f3)
-            python3 .github/scripts/publish_modrinth.py               --file "$jar" --loader "$loader" --mc "$MC" --tag "$TAG"
+            python3 main-scripts/.github/scripts/publish_modrinth.py --file "$jar" --loader "$loader" --mc "$MC" --tag "$TAG"
           done
 
   release:
