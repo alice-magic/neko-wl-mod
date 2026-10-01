@@ -126,34 +126,6 @@ public final class NekoWhitelistClient {
         }
     }
 
-    /**
-     * Asks about one player, for the case where the cached list says no.
-     *
-     * <p>This is the only call that can sit on a login path, so it takes a short timeout:
-     * a player waits on it, and a slow answer must not hold the connection open. The
-     * caller is expected to fall back to the cached answer if this throws.
-     *
-     * @param uuid     the connecting player's id
-     * @param username their name, matched as a fallback for username-typed entries
-     */
-    public boolean isWhitelisted(UUID uuid, String username, Duration timeout)
-            throws WhitelistApiException {
-        StringBuilder url = new StringBuilder(config.baseUrl())
-                .append("/api/v1/server/instances/")
-                .append(URLEncoder.encode(config.instance(), StandardCharsets.UTF_8))
-                .append("/whitelist/check?uuid=")
-                .append(URLEncoder.encode(uuid.toString(), StandardCharsets.UTF_8));
-
-        if (username != null && !username.isBlank()) {
-            // Passing both means "match on either", which is what we want: the owner may
-            // have entered whichever they had to hand.
-            url.append("&username=").append(URLEncoder.encode(username, StandardCharsets.UTF_8));
-        }
-
-        JsonObject data = get(url.toString(), timeout);
-        return data.has("whitelisted") && data.get("whitelisted").getAsBoolean();
-    }
-
     /** Returns null rather than throwing, so one malformed row cannot fail a whole sync. */
     public static UUID parseUndashed(String raw) {
         if (raw == null) {
@@ -183,18 +155,13 @@ public final class NekoWhitelistClient {
     }
 
     private JsonObject get(String url) throws WhitelistApiException {
-        return get(url, SYNC_TIMEOUT);
-    }
-
-    /** Sends one request and unwraps the {@code {code, message, data}} envelope. */
-    private JsonObject get(String url, Duration timeout) throws WhitelistApiException {
         HttpResponse<String> response;
         try {
             HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                     // Not Authorization: Bearer, that header is for player sessions.
                     .header("X-API-Key", config.apiKey())
                     .header("Accept", "application/json")
-                    .timeout(timeout)
+                    .timeout(SYNC_TIMEOUT)
                     .GET()
                     .build();
             response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));

@@ -16,17 +16,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.net.SocketAddress;
 
 /**
- * Re-checks a player vanilla is about to turn away.
+ * Checks whitelist decisions against the latest cached API snapshot.
  *
- * <p>The synced whitelist is only as fresh as the last poll, so someone added in the
- * dashboard moments ago would be rejected until the next sync. Hooking the login check
- * itself means they get in immediately, and it is the same decision point vanilla uses,
- * so nothing else in the login flow has to change.
+ * <p>No API request runs during login. Players absent from the cached list are rejected.
  *
- * <p>Only rejections are examined, and only those for the whitelist. A player vanilla
- * already accepts is let through untouched, which keeps the common case free of any
- * network call, and a ban, an IP ban or a full server is never overridden: the same
- * method reports all of them, and only the whitelist is ours to speak for.
+ * <p>A ban, an IP ban or a full server is never overridden: only whitelist decisions are
+ * ours to speak for.
  */
 @Mixin(PlayerList.class)
 public abstract class PlayerListMixin {
@@ -35,22 +30,26 @@ public abstract class PlayerListMixin {
     private static final String NOT_WHITELISTED = "multiplayer.disconnect.not_whitelisted";
 
     @Inject(method = "canPlayerLogin", at = @At("RETURN"), cancellable = true)
-    private void nekoWhitelist$recheckRejectedLogin(
+    private void nekoWhitelist$checkCachedWhitelist(
             SocketAddress address, GameProfile profile, CallbackInfoReturnable<Component> info) {
-
-        // A null return means vanilla is happy; nothing to add.
-        if (!isWhitelistRejection(info.getReturnValue())) {
-            return;
-        }
 
         JoinGate gate = NekoWhitelistMod.joinGate();
         if (gate == null) {
             return;
         }
 
-        // Runs on a login thread with the player waiting, so the gate bounds its own
-        // API call and falls back to the synced list rather than hanging the connection.
-        if (gate.allowsFresh(profile.getId(), profile.getName())) {
+        Component rejection = info.getReturnValue();
+        if (rejection == null) {
+            if (!gate.allows(profile.getId(), profile.getName())) {
+                info.setReturnValue(Component.translatable(NOT_WHITELISTED));
+            }
+            return;
+        }
+        if (!isWhitelistRejection(rejection)) {
+            return;
+        }
+
+        if (gate.allows(profile.getId(), profile.getName())) {
             info.setReturnValue(null);
         }
     }

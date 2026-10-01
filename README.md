@@ -57,10 +57,8 @@ the plugin. Fill in the key and the instance name, then restart.
   "baseUrl": "https://api.neko-launcher.com",
   "apiKey": "nl_...",
   "instance": "survival-smp",
-  "syncSeconds": 300,
-  "enforceOverride": null,
-  "checkOnJoin": true,
-  "joinCheckTimeoutMillis": 2000
+  "syncSeconds": 60,
+  "enforceOverride": null
 }
 ```
 
@@ -68,10 +66,8 @@ the plugin. Fill in the key and the instance name, then restart.
 |---|---|
 | `apiKey` | Workspace API key, from **Workspace → Settings → API Key** in the dashboard |
 | `instance` | The instance's URL-safe **name**, not its display name. List them with the curl command below. |
-| `syncSeconds` | How often to re-sync. Clamped to a 15-second minimum. |
+| `syncSeconds` | How often to re-sync. Defaults to 60 seconds and cannot be lower. |
 | `enforceOverride` | `null` follows the instance's own `enforceWhitelist` setting. `true` or `false` overrides it. |
-| `checkOnJoin` | Look a connecting player up against the API when the synced list does not know them, so someone added seconds ago gets in on their next attempt rather than after the next sync. |
-| `joinCheckTimeoutMillis` | How long that background lookup may take before giving up. It never delays a login. Clamped to 250–10000. |
 
 To find the instance name:
 
@@ -84,22 +80,11 @@ Treat it like a password: it belongs in the server's config file, never in a rep
 a resource pack, or a screenshot. It is never written to the log. Rotating it in the dashboard
 invalidates the old one immediately, so update the config before you rotate.
 
-## The mod owns `whitelist.json`
-
-The dashboard is the source of truth. On the first sync after startup the mod **drops
-every entry in `whitelist.json` that it did not put there**, naming them in the log first,
-and from then on the file mirrors the Neko Launcher whitelist. Entries it wrote on a
-previous run are recognised and kept, so a restart does not rewrite the file.
-
-Anything added with `/whitelist add` or by hand is removed on the next sync. To keep
-someone, add them in the dashboard.
-
-**The plugin does not do this.** Bukkit exposes its whitelist only as offline-player
-entries, and rewriting it would fight `/whitelist` and other plugins, so the plugin checks
-each login against the synced list instead and leaves `whitelist.json` alone.
-
-`/whitelist reload` re-reads the file and will drop the mod's entries until the next sync
-brings them back.
+The dashboard is the source of truth. The server loads the saved snapshot on startup,
+fetches the full list from the API, then refreshes it every 60 seconds. Login checks use
+only that in-memory snapshot; a player missing from it is rejected without an API request.
+If the first fetch has not completed, logins are rejected until it does. A failed refresh
+keeps the last good snapshot.
 
 ## Commands
 
@@ -115,41 +100,28 @@ command is also available as `/nekowl`.
 
 ## Staying current
 
-Three things keep the server close to the dashboard, in increasing order of immediacy:
-
-1. **The poll.** `syncSeconds`, 5 minutes by default, down to 15 if you want it tighter.
-   The API has no webhook, so polling is the only push-free option.
-2. **`/nekowhitelist reload`.** Applies a dashboard change straight away.
-3. **The join check.** A player the synced list does not know is looked up against the
-   API when they connect. The lookup runs in the background and the first attempt is
-   still refused, so **they get in on their next attempt** a second or two later, without
-   waiting for the next sync. Turn it off with `checkOnJoin: false`.
-
-The login check runs on the server thread, so the gate never blocks it: a slow or
-unreachable API costs the server nothing, and a stranger reconnecting in a loop cannot
-stall it. A player already in the synced list never triggers a lookup at all.
+The API has no webhook, so dashboard changes reach the server on the next 60-second poll.
+Run `/nekowhitelist reload` to fetch immediately.
 
 ## How it behaves
 
 The mod writes the server's whitelist and lets the vanilla login check reject anyone
 missing, with the usual "You are not white-listed on this server!" message. The plugin
 refuses the login itself, with the same message.
-No HTTP call ever blocks a login: the join check above runs in the background, off the
-server thread, so an API outage cannot stall a connection or a tick.
+Login checks read memory only and never call the API. Sync requests run in the background,
+so API outages do not stall connections or server ticks.
 
 - **Offline API, server up.** The last known list stays in force, with backoff between
   retries. Nobody is kicked.
 - **Offline API, server restarting.** The list is restored from a local cache file
   written after every successful sync.
-- **No cache and the first sync fails.** Enforcement is left untouched and a warning is
-  logged, rather than switching on an empty whitelist and locking out everyone including
-  admins.
+- **No cache and the first sync fails.** Joins are rejected until a sync succeeds.
 - **Bad key (`401`) or unknown instance (`404`).** Logged once and the sync loop stops,
   since retrying cannot fix either. Any list already applied keeps working; fix the config
   and restart.
 - **Steady state.** For the mod, a sync with no dashboard changes writes nothing to disk,
   and a restart with no changes does not rewrite `whitelist.json` either.
-- **Bans are left alone.** The join check only reconsiders a whitelist refusal. A banned
+- **Bans are left alone.** The login hook only reconsiders a whitelist refusal. A banned
   player, an IP ban and a full server are never overridden.
 
 ### Username entries

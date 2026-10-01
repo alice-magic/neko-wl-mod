@@ -52,7 +52,7 @@ public final class WhitelistSyncService {
         this.log = log;
         this.client = new NekoWhitelistClient(config);
         this.applier = new WhitelistApplier(server, log);
-        this.joinGate = new JoinGate(config, client, this::runOffThread, log);
+        this.joinGate = new JoinGate();
     }
 
     /**
@@ -81,20 +81,7 @@ public final class WhitelistSyncService {
             return thread;
         });
 
-        executor.schedule(this::syncOnce, 1, TimeUnit.SECONDS);
-    }
-
-    /**
-     * Runs a task on the sync executor.
-     *
-     * <p>The gate uses this for its background lookups, so they share one daemon thread
-     * with the poll loop and stop with it. Before the loop is started, or after it is
-     * stopped, the task is simply dropped: there is nothing useful a lookup could do.
-     */
-    private void runOffThread(Runnable task) {
-        if (!stopped.get() && executor != null && !executor.isShutdown()) {
-            executor.execute(task);
-        }
+        executor.execute(this::syncOnce);
     }
 
     /** The login hooks ask this whether a connecting player may in. */
@@ -198,9 +185,7 @@ public final class WhitelistSyncService {
             log.warn("Keeping the last known whitelist ({} entries) until the next sync.",
                     lastGood.size());
         } else {
-            // Fail open: with no list at all, enforcing would lock out everyone
-            // including admins, which is worse than briefly letting strangers in.
-            log.warn("No whitelist available yet; leaving enforcement untouched.");
+            log.warn("No whitelist available yet; rejecting joins until a sync succeeds.");
         }
 
         consecutiveFailures++;

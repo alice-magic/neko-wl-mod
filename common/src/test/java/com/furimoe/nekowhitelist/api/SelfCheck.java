@@ -134,8 +134,7 @@ public final class SelfCheck {
                   "apiKey": "  nl_4f3c8a1e9b2d7046b5e1c8a9f2d63b7e  ",
                   "instance": "survival-smp",
                   "syncSeconds": 5,
-                  "enforceOverride": null,
-                  "joinCheckTimeoutMillis": 99999 }
+                  "enforceOverride": null }
                 """).getAsJsonObject();
 
         WhitelistConfig config = WhitelistConfig.fromJson(json);
@@ -144,12 +143,7 @@ public final class SelfCheck {
                 : "trailing slash should be stripped so paths do not double up";
         assert config.apiKey().equals("nl_4f3c8a1e9b2d7046b5e1c8a9f2d63b7e")
                 : "a pasted key with stray spaces should still work";
-        // The API docs ask plugins not to poll every few seconds; clamp rather than trust.
-        assert config.syncSeconds() == 15 : "too-eager sync should clamp, got " + config.syncSeconds();
-        // A join check holds a connection open, so an absurd timeout must not be honoured.
-        assert config.joinCheckTimeoutMillis() == 10000
-                : "join timeout should clamp, got " + config.joinCheckTimeoutMillis();
-        assert config.checkOnJoin() : "checkOnJoin should default on when the file omits it";
+        assert config.syncSeconds() == 60 : "sync interval should be at least 60 seconds";
         assert config.enforceOverride() == null : "null override means follow the API";
         assert config.isConfigured() : "key plus instance means configured";
 
